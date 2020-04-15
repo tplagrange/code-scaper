@@ -1,8 +1,22 @@
 const puppeteer = require('puppeteer');
 
-url = "https://raw.githubusercontent.com/tplagrange/fireteam-bot/master/api.go"
-screenshot(url)
-getText(url)
+url = "https://github.com/tplagrange/code-scaper"
+run(url)
+
+// Potentially use a library like cheerio to reduce overhead of running all these browsers
+function run(seed) {
+  (async () => {
+    const browser = await puppeteer.launch()
+    const page = await browser.newPage()
+    await page.goto(seed)
+
+    // Get all links that are in form "github.com/user/repo"
+    const hrefs = await page.$$eval('a', links => links.map(a => a.href))
+    console.log(hrefs)
+
+    await browser.close()
+  })();
+}
 
 // Grab full-screen shot of the webpage
 function screenshot(url) {
