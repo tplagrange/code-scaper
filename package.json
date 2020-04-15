@@ -1,0 +1,11 @@
+{
+  "name": "code-scraper",
+  "version": "1.0.0",
+  "description": "Pull screenshots of code with matching text for purposes of building ML training data.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Thomas Lagrange",
+  "license": "ISC"
+}
