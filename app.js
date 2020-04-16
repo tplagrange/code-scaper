@@ -25,9 +25,10 @@ async function run(seed) {
   // Get all links that are in form "github.com/user/repo"
   const hrefs = await getGitHubRepos(seed)
 
-  // hrefs.forEach((e) => {
-  //   console.log(e)
-  // });
+  asyncForEach(hrefs, async (e) => {
+    const links = await getRawFileLinks(e)
+    console.log(links)
+  })
 
   await browser.close()
 }
@@ -84,4 +85,10 @@ async function getRawFileLinks(url) {
 
   await browser.close()
   return files
+}
+
+async function asyncForEach(array, callback) {
+  for (let index = 0; index < array.length; index++) {
+    await callback(array[index], index, array);
+  }
 }
