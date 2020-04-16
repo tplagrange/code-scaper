@@ -3,14 +3,20 @@
 ///////////////////////////////////////////
 const puppeteer = require('puppeteer');
 const url = "https://github.com/avelino/awesome-go/blob/master/README.md";
-const gitHubRepoRegex = /^(https:\/\/github\.com\/\S[^\/]+\/\S[^\/]+)$/;
+
+const gitHubRepoRegex = /^https:\/\/github\.com\/(?!about\/|contact\/|features\/|pricing\/|site\/)[^\/]+\/\S[^\/]+$/;
+const goFileRegex = /^(https:\/\/github\.com\/\S[^\/]+\/\S[^\/]+\/\S[^\.]+\.go)$/;
 
 ///////////////////////////////////////////
 // Logic
 ///////////////////////////////////////////
+
 run(url)
 
-// Potentially use a library like cheerio to reduce overhead of running all these browsers
+
+// TODO: Use cheerio where I don't need a headless browser
+
+
 async function run(seed) {
   const browser = await puppeteer.launch()
   const page = await browser.newPage()
@@ -18,6 +24,10 @@ async function run(seed) {
 
   // Get all links that are in form "github.com/user/repo"
   const hrefs = await getGitHubRepos(seed)
+
+  // hrefs.forEach((e) => {
+  //   console.log(e)
+  // });
 
   await browser.close()
 }
@@ -53,11 +63,25 @@ async function getGitHubRepos(url) {
   const page = await browser.newPage()
   await page.goto(url)
 
-  // TODO: Understand $$eval better
   const hrefs = await page.$$eval('a', links => links.map(a => a.href))
   const repos = hrefs.flatMap(x => gitHubRepoRegex.exec(x)).filter( e => e != null)
   const dedupedRepos = [...new Set(repos)]
 
   await browser.close()
   return dedupedRepos
+}
+
+// For now I will get a dataset containing only .go files
+async function getRawFileLinks(url) {
+  url = url + "/search?l=go"
+
+  const browser = await puppeteer.launch()
+  const page = await browser.newPage()
+  await page.goto(url)
+
+  const hrefs = await page.$$eval('a', links => links.map(a => a.href))
+  const files = hrefs.flatMap(x => goFileRegex.exec(x)).filter( e => e != null)
+
+  await browser.close()
+  return files
 }
