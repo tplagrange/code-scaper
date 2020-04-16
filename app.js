@@ -1,4 +1,3 @@
-const progress = require('cli-progress')
 const cheerio = require('cheerio');
 const puppeteer = require('puppeteer');
 const request = require('request');
