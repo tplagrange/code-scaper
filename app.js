@@ -1,10 +1,13 @@
 ///////////////////////////////////////////
-// Variables
+// Constants
 ///////////////////////////////////////////
 const puppeteer = require('puppeteer');
+const request = require('request');
+const cheerio = require('cheerio');
+
 const url = "https://github.com/avelino/awesome-go/blob/master/README.md";
 
-const gitHubRepoRegex = /^https:\/\/github\.com\/(?!about\/|contact\/|features\/|pricing\/|site\/)[^\/]+\/\S[^\/]+$/;
+const gitHubRepoRegex = /^https:\/\/github\.com\/(?!about\/|contact\/|features\/|nonprofit\/|pricing\/|site\/)[^\/]+\/\S[^\/]+$/;
 const goFileRegex = /^(https:\/\/github\.com\/\S[^\/]+\/\S[^\/]+\/\S[^\.]+\.go)$/;
 
 ///////////////////////////////////////////
@@ -13,24 +16,29 @@ const goFileRegex = /^(https:\/\/github\.com\/\S[^\/]+\/\S[^\/]+\/\S[^\.]+\.go)$
 
 run(url)
 
-
 // TODO: Use cheerio where I don't need a headless browser
 
 
 async function run(seed) {
-  const browser = await puppeteer.launch()
-  const page = await browser.newPage()
-  await page.goto(seed)
-
-  // Get all links that are in form "github.com/user/repo"
+  // Get all github repo links from seed
   const hrefs = await getGitHubRepos(seed)
 
-  asyncForEach(hrefs, async (e) => {
-    const links = await getRawFileLinks(e)
-    console.log(links)
-  })
+  // Get all .go file links for each repo
+  asyncForEach(hrefs, async (repo) => {
+    const links = await getFileLinks(repo)
+    // Now you can do something with each file page
+    asyncForEach(links, async (link) => {
+      await handleFile(link)
+    })
 
-  await browser.close()
+  })
+}
+
+// TODO: This will have to be rate limited somehow, or think of an alternative
+// Handle a file link
+async function handleFile(link) {
+  newLink = link.replace("https://github.com/", "https://raw.githubusercontent.com/")
+  console.log(newLink)
 }
 
 // Grab full-screen shot of the webpage
@@ -60,31 +68,35 @@ async function getText(url) {
 }
 
 async function getGitHubRepos(url) {
-  const browser = await puppeteer.launch()
-  const page = await browser.newPage()
-  await page.goto(url)
-
-  const hrefs = await page.$$eval('a', links => links.map(a => a.href))
-  const repos = hrefs.flatMap(x => gitHubRepoRegex.exec(x)).filter( e => e != null)
+  const hrefs = await getAllLinks(url)
+  const repos = hrefs.flatMap( e => gitHubRepoRegex.exec(e)).filter( e => e != null)
   const dedupedRepos = [...new Set(repos)]
 
-  await browser.close()
   return dedupedRepos
 }
 
 // For now I will get a dataset containing only .go files
-async function getRawFileLinks(url) {
-  url = url + "/search?l=go"
+async function getFileLinks(url) {
+  nurl = url + "/search?l=go"
+  const hrefs = await getAllLinks(nurl)
+  const fixed = hrefs.filter( e => e.startsWith('/')).map( i => 'https://github.com' + i)
+  const files = fixed.flatMap(e => goFileRegex.exec(e)).filter( i => i != null)
 
-  const browser = await puppeteer.launch()
-  const page = await browser.newPage()
-  await page.goto(url)
-
-  const hrefs = await page.$$eval('a', links => links.map(a => a.href))
-  const files = hrefs.flatMap(x => goFileRegex.exec(x)).filter( e => e != null)
-
-  await browser.close()
   return files
+}
+
+async function getAllLinks(url) {
+  return new Promise((resolve, reject) => {
+    request(url, (err, res, body) => {
+      let hrefs = new Array()
+      let $ = cheerio.load(body);
+      $('a').each((i, link) => {
+        const href = link.attribs.href;
+        hrefs.push(href)
+      })
+      resolve(hrefs)
+    })
+  })
 }
 
 async function asyncForEach(array, callback) {
