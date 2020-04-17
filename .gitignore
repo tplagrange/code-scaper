@@ -2,6 +2,7 @@
 .DS_Store
 
 # Generated Output
+data/
 *.png
 
 # Logs
