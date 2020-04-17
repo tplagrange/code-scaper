@@ -1,10 +1,16 @@
-const cheerio = require('cheerio');
+const cheerio   = require('cheerio');
 const puppeteer = require('puppeteer');
-const request = require('request');
+const request   = require('request');
 
-const url = require('./url.js')
+const headless = require('./headless.js')
+const url    = require('./url.js')
+
 const seed = "https://github.com/avelino/awesome-go/blob/master/README.md";
 
+setTimeout((() => {
+  console.log("Process timed-out.")
+  return process.exit(1)
+}), 30000)
 run(seed)
 
 async function run(seed) {
@@ -18,7 +24,7 @@ async function run(seed) {
   const hrefs = await url.getGitHubRepos(seed)
   if (hrefs.length == 0) {
     console.log("[ERROR] No GitHub Repos!")
-    return
+    return process.exit(1)
   }
 
   const links = await processArray(hrefs, url.getFileLinks)
@@ -29,6 +35,8 @@ async function run(seed) {
   console.info(`Processed ${links.length} file URLs`)
   console.info('Execution time: %dms', end)
   console.info('Execution time (hr): %ds %dms', hrend[0], hrend[1] / 1000000)
+
+  return process.exit(0)
 }
 
 // Here's where we can kick off any work to be done on a code page
@@ -36,7 +44,7 @@ async function run(seed) {
 async function handleFile(link) {
   // TODO: Replacing /blob/ might be a problem if a repo or user is called blob, replacing the last instance would work
   const newLink = link.replace("https://github.com/", "https://raw.githubusercontent.com/").replace("/blob/", "/")
-  // await screenshot(newLink)
+  await headless.screenshot(newLink)
   return newLink
 }
 

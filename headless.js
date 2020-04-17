@@ -1,6 +1,7 @@
 const puppeteer = require('puppeteer');
 
 // Grab full-screen shot of the webpage
+// TODO: Queue any headless tasks to limit headless browser instances
 const screenshot = async (url) => {
   const browser = await puppeteer.launch()
   const page = await browser.newPage()
