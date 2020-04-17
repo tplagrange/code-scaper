@@ -1,4 +1,5 @@
 const cheerio   = require('cheerio');
+const fs        = require('fs')
 const puppeteer = require('puppeteer');
 const request   = require('request');
 
@@ -8,6 +9,7 @@ const url    = require('./url.js')
 const { Cluster } = require('puppeteer-cluster')
 
 const seed = "https://github.com/avelino/awesome-go/blob/master/README.md";
+const fonts = [ 'Arial', 'Roboto' ];
 
 run(seed)
 
@@ -15,26 +17,38 @@ async function run(seed) {
     const cluster = await Cluster.launch({
       concurrency: Cluster.CONCURRENCY_CONTEXT,
       maxConcurrency: 20,
+      monitor: true,
     });
 
     await cluster.task(async ({ page, data: url }) => {
       await page.goto(url);
-      await page.screenshot({path: `data/${hash(url)}.png`, fullPage: true})
+
+      const text = await page.evaluate('document.querySelector("pre").innerText')
+      fs.writeFile(`data/raw/${hash(url)}.txt`, text, (err) => {
+        if (err) throw err;
+      });
+      await page.screenshot({path: `data/raw/${hash(url)}.png`, fullPage: true})
+      await processArray(fonts, async (font) => {
+        await page.addStyleTag({content: `pre {font-family: ${font} !important;}`});
+        await page.screenshot({path: `data/raw/${hash(url)}-${font}.png`, fullPage: true})
+      });
+
+      console.log('done')
     });
 
     // Measure
     const start = new Date()
     const hrstart = process.hrtime()
 
-    // let hrefs = new Array()
-    // hrefs.push("https://github.com/tplagrange/lf")
+    let hrefs = new Array()
+    hrefs.push("https://github.com/avelino/awesome-go")
     // hrefs.push("https://github.com/tplagrange/fireteam-bot")
-    const hrefs = await url.getGitHubRepos(seed)
-    if (hrefs.length == 0) {
-      console.log("[ERROR] No GitHub Repos!")
-      await cluster.close()
-      return process.exit(1)
-    }
+    // const hrefs = await url.getGitHubRepos(seed)
+    // if (hrefs.length == 0) {
+    //   console.log("[ERROR] No GitHub Repos!")
+    //   await cluster.close()
+    //   return process.exit(1)
+    // }
 
     const links = await processArray(hrefs, url.getFileLinks)
     const files = await processArray(links, prepareFileLink)
