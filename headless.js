@@ -2,15 +2,10 @@ const puppeteer = require('puppeteer');
 
 // Grab full-screen shot of the webpage
 // TODO: Queue any headless tasks to limit headless browser instances
-const screenshot = async (url) => {
-  const browser = await puppeteer.launch()
-  const page = await browser.newPage()
-  await page.goto(url)
-
+const screenshot = async (page) => {
   // Possibly return the image? It needs to be processed
-  await page.screenshot({path: `data/${hash(url)}.png`, fullPage: true})
+  page.screenshot({path: `data/${hash(url)}.png`, fullPage: true})
 
-  await browser.close()
 }
 
 // Grab all the text on the webpage
