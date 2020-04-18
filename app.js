@@ -1,10 +1,12 @@
 const cheerio   = require('cheerio');
 const fs        = require('fs')
+const path      = require('path')
 const puppeteer = require('puppeteer');
 const request   = require('request');
 
+const bash     = require('./bash.js')
 const headless = require('./headless.js')
-const url    = require('./url.js')
+const url      = require('./url.js')
 
 const { Cluster } = require('puppeteer-cluster')
 
@@ -16,11 +18,8 @@ run(seed)
 async function run(seed) {
   const cluster = await Cluster.launch({
     concurrency: Cluster.CONCURRENCY_CONTEXT,
-    maxConcurrency: 30,
+    maxConcurrency: 20,
     monitor: true,
-    // puppeteerOptions: {
-    //   dumpio: true,
-    // },
   });
 
   // TODO: Abstract this to one task per font also
@@ -35,7 +34,7 @@ async function run(seed) {
     for (var i = 0; i < fonts.length; i++) {
       const font = fonts[i];
       await page.evaluate( (font) => {
-        document.querySelector('pre').style = `font-family: ${font}`
+        document.querySelector('pre').style = `font-family: ${font}`;
       }, font);
       await page.screenshot({path: `data/raw/${hash(url)}-${font}.png`, fullPage: true});
     }
@@ -45,28 +44,29 @@ async function run(seed) {
   const start = new Date()
   const hrstart = process.hrtime()
 
-  let hrefs = new Array()
-  hrefs.push("https://github.com/tplagrange/lf")
-  hrefs.push("https://github.com/tplagrange/fireteam-bot")
-  // const hrefs = await url.getGitHubRepos(seed)
-  // if (hrefs.length == 0) {
-  //   console.log("[ERROR] No GitHub Repos!")
-  //   await cluster.close()
-  //   return process.exit(1)
-  // }
+  // let hrefs = new Array()
+  // hrefs.push("https://github.com/tplagrange/lf")
+  // hrefs.push("https://github.com/tplagrange/fireteam-bot")
+  const hrefs = await url.getGitHubRepos(seed)
+  if (hrefs.length == 0) {
+    console.log("[ERROR] No GitHub Repos!")
+    await cluster.close()
+    return process.exit(1)
+  }
 
-  // const links = await processArray(hrefs, url.getFileLinks)
-  // const files = await processArray(links, prepareFileLink)
-  // processArray(files, (e) => cluster.queue(e))
-  cluster.queue("https://raw.githubusercontent.com/tplagrange/code-scraper/master/app.js")
+  const links = await processArray(hrefs, url.getFileLinks)
+  const files = await processArray(links, prepareFileLink)
+  processArray(files, (e) => cluster.queue(e))
 
   await cluster.idle()
+  await cluster.close()
+  await buildBoxData()
+  await buildLTSMData()
   const end = new Date() - start
   const hrend = process.hrtime(hrstart)
-  // console.info(`Processed ${links.length} file URLs`)
+  console.info(`Processed ${links.length} file URLs`)
   console.info('Execution time: %dms', end)
   console.info('Execution time (hr): %ds %dms', hrend[0], hrend[1] / 1000000)
-  await cluster.close()
   return process.exit(0)
 }
 
@@ -94,4 +94,64 @@ function hash(str) {
     hash |= 0;
   }
   return hash
+}
+
+async function buildBoxData() {
+  const rawPath = path.join(__dirname, 'data/raw')
+  fs.readdir(rawPath, (err, files) => {
+    if (err) {
+        return console.log('Unable to scan directory: ' + err);
+    } 
+
+    let fileMap = new Map()
+
+    files.forEach((file) => {
+        // console.log(file)
+        let hashCode
+        if (file[0] == "-") {
+          hashCode = file.split("-")[1]
+          hashCode = "-" + hashCode
+        } else {
+          hashCode = file.split("-")[0]
+        }
+        
+        if (hashCode.endsWith(".txt")) {
+          hashCode = hashCode.split(".")[0]
+        }
+
+        if (fileMap.has(hashCode)) {
+          return
+        } else {
+          fileMap.set(hashCode, 1)
+          textPath = path.join(rawPath, hashCode + ".txt")
+          fonts.forEach((font) => {
+            let imagePath = ""
+            imagePath = path.join(rawPath, hashCode + "-" + font + ".png")
+            if (fs.existsSync(imagePath)) {
+              // TODO: Probably need to pass things as env vars in the future
+              bash.run(`cd ${path.join(__dirname, 'data/box')} && /usr/local/bin/tesseract`, [ imagePath, `${hashCode}_${font}`, "lstmbox" ])
+            }
+          });
+        }
+    });
+  });
+}
+
+async function buildLTSMData() {
+  const rawPath = path.join(__dirname, 'data/raw')
+  fs.readdir(rawPath, (err, files) => {
+    if (err) {
+        return console.log('Unable to scan directory: ' + err);
+    } 
+
+    files.forEach((file) => {
+      if (!file.endsWith('.png')) {
+        return
+      } else {
+        const fileName = path.basename(file)
+        let boxName = fileName.replace(".png", ".box")
+        bash.run(`cd ${path.join(__dirname, 'data/lstmf')} && /usr/local/bin/tesseract`, [ path.join(__dirname, `data/box/${boxName}`), path.join(__dirname, `data/raw/${fileName}`), `lstm.train`])
+      }
+    });
+  });
 }
